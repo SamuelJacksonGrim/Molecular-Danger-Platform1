@@ -1,0 +1,8 @@
+{
+  "description": "Known energetic structures that MUST trigger an explosive-category alert. Nitro groups are written charge-separated to match the [N+](=O)[O-] pattern.",
+  "molecules": [
+    { "name": "TNT", "smiles": "Cc1c([N+](=O)[O-])cc([N+](=O)[O-])cc1[N+](=O)[O-]", "expectCat": "explosive" },
+    { "name": "Nitroglycerin", "smiles": "C(C(CO[N+](=O)[O-])O[N+](=O)[O-])O[N+](=O)[O-]", "expectCat": "explosive" },
+    { "name": "Hydrogen peroxide", "smiles": "OO", "expectCat": "explosive" }
+  ]
+}
