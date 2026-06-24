@@ -1,0 +1,8 @@
+{
+  "description": "CWC-scheduled agent structures used ONLY as detector validation: each MUST trigger a chemical_weapon alert and the ethical warning. These are public, scheduled structures, included so detection can be regression-tested. The platform recognizes them; it does not produce them.",
+  "molecules": [
+    { "name": "Sarin (GB)", "smiles": "CC(C)OP(=O)(C)F", "expectCat": "chemical_weapon" },
+    { "name": "VX", "smiles": "CCOP(=O)(C)SCCN(C(C)C)C(C)C", "expectCat": "chemical_weapon" },
+    { "name": "Sulfur mustard (HD)", "smiles": "ClCCSCCCl", "expectCat": "chemical_weapon" }
+  ]
+}
