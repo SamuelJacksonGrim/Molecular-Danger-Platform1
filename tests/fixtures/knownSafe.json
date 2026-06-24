@@ -1,0 +1,10 @@
+{
+  "description": "Benign reference structures that must NOT trigger any hazard alert. Guards against false positives.",
+  "molecules": [
+    { "name": "Ethanol", "smiles": "CCO" },
+    { "name": "Water", "smiles": "O" },
+    { "name": "Acetic acid", "smiles": "CC(=O)O" },
+    { "name": "Benzene", "smiles": "c1ccccc1" },
+    { "name": "Glucose", "smiles": "OCC1OC(O)C(O)C(O)C1O" }
+  ]
+}
