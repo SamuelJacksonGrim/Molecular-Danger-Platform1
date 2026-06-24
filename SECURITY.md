@@ -31,4 +31,4 @@ RDKit build you were running, so the case can be added as a regression test.
 
 This project recognizes and explains hazards in structures the user provides. It
 does not generate hazardous structures, propose syntheses, or supply procedures,
-and reports that request such additions are out of scope. See `TERMS.md`.
+and reports that request such additions are out of scope. See [`TERMS.md`](./TERMS.md)
