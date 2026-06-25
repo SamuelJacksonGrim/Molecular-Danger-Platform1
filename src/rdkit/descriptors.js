@@ -37,12 +37,18 @@ export function getAtomCounts(rdkit, mol) {
 
     const defaultZ = (j.defaults && j.defaults.atom && j.defaults.atom.z) || 6;
     const counts = { C: 0, H: 0, N: 0, O: 0 };
+    const otherSet = new Set();
     for (const atom of m.atoms) {
       const z = atom.z !== undefined ? atom.z : defaultZ;
-      const sym = ATOMIC_SYMBOL[z];
-      if (sym && counts[sym] !== undefined) counts[sym] += 1;
+      if (z === 1) counts.H += 1;
+      else if (z === 6) counts.C += 1;
+      else if (z === 7) counts.N += 1;
+      else if (z === 8) counts.O += 1;
+      else otherSet.add(ATOMIC_SYMBOL[z] || `Z${z}`); // non-CHNO atom present
     }
-    return counts;
+    // `other` lists any atoms outside C/H/N/O, which the CHNO oxygen-balance
+    // formula cannot account for (see oxygenBalance.js reliability handling).
+    return { ...counts, other: [...otherSet].sort() };
   } catch {
     return null;
   } finally {
