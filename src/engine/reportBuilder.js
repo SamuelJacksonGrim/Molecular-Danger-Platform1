@@ -14,11 +14,14 @@ export function buildReport({ smiles, scoring, oxygenBalance, exposure, pubchem 
     triggersEthicalWarning: scoring.triggersEthicalWarning,
 
     // Full oxygen-balance result: the UI sees the nearZero flag that drove the
-    // scoring alert, and can distinguish "unavailable" from a real value.
+    // scoring alert, can distinguish "unavailable" from a real value, and is told
+    // when the value is unreliable (non-CHNO molecule) rather than authoritative.
     oxygenBalance: {
       available: oxygenBalance.available,
       percent: oxygenBalance.percent,
       nearZero: oxygenBalance.nearZero,
+      reliable: oxygenBalance.reliable,
+      limitations: oxygenBalance.limitations ?? null,
     },
 
     // Handling guidance — how careful to be — kept separate from the hazard score.
