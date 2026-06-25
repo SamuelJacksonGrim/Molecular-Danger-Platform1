@@ -44,31 +44,31 @@ defines the contracts that `hazard-engine.md`, `pubchem-integration.md`,
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  PRESENTATION  [PLANNED]                                              │
-│  React pages (Assess · Batch · Database · Compare · Analytics ·       │
-│  History) · components · hooks · 2D render (SmilesDrawer) · charts    │
-│  (Recharts)                                                           │
+│  PRESENTATION  [PLANNED]                                                        │
+│  React pages (Assess · Batch · Database · Compare · Analytics ·                 │
+│  History) · components · hooks · 2D render (SmilesDrawer) · charts              │
+│  (Recharts)                                                                     │
 └───────────────────────────────┬─────────────────────────────────────┘
                                  │ calls loadRDKit() once, then
                                  │ assessMolecule(rdkit, smiles, exposure)
 ┌───────────────────────────────▼─────────────────────────────────────┐
-│  ORCHESTRATION  [BUILT]                                               │
-│  engine/assessMolecule.js   — runs the pipeline, owns mol lifecycle   │
+│  ORCHESTRATION  [BUILT]                                                          │
+│  engine/assessMolecule.js   — runs the pipeline, owns mol lifecycle              │
 └───────┬─────────────┬──────────────┬───────────────┬─────────────────┘
-        │             │              │               │
+         │                │                │                  │
 ┌───────▼──────┐ ┌────▼───────┐ ┌────▼─────────┐ ┌───▼──────────────┐
-│ DOMAIN LOGIC │ │  PATTERNS  │ │ RDKit ADAPTER│ │   SERVICES       │
-│  [BUILT]     │ │  [BUILT]   │ │  [BUILT]     │ │  pubchem [BUILT] │
-│ hazardScoring│ │ explosives │ │ moleculeParser│ │ export   [PLANNED]│
-│ oxygenBalance│ │ cwcAgents  │ │ smartsMatcher │ │ storage  [PLANNED]│
-│ exposureCtx  │ │ toxicophore│ │ descriptors   │ └──────────────────┘
-│ reportBuilder│ │ index      │ │ rdkitLoader   │
-└───────┬──────┘ └────────────┘ └───────────────┘
+│ DOMAIN LOGIC    │ │  PATTERNS     │ │ RDKit ADAPTER   │ │   SERVICES          │
+│  [BUILT]        │ │  [BUILT]      │ │  [BUILT]        │ │  pubchem [BUILT]    │
+│ hazardScoring   │ │ explosives    │ │ moleculeParser  │ │ export   [PLANNED]  │
+│ oxygenBalance   │ │ cwcAgents     │ │ smartsMatcher   │ │ storage  [PLANNED]  │
+│ exposureCtx     │ │ toxicophore   │ │ descriptors     │ └──────────────────┘
+│ reportBuilder   │ │ index         │ │ rdkitLoader     │
+└──────┬───────┘  └────────────┘ └───────────────┘
         │
 ┌───────▼──────────────┐   ┌──────────────────┐   ┌────────────────────┐
-│  UTILITIES  [BUILT]  │   │ PERSISTENCE       │   │ CONCURRENCY        │
-│ riskLevels           │   │  [PLANNED]        │   │  [PLANNED]         │
-│ validation           │   │ storage/ (forage) │   │ workers/batchWorker│
+│  UTILITIES  [BUILT]      │   │ PERSISTENCE          │   │ CONCURRENCY           │
+│ riskLevels               │   │  [PLANNED]           │   │  [PLANNED]            │
+│ validation               │   │ storage/ (forage)    │   │ workers/batchWorker   │
 └──────────────────────┘   └──────────────────┘   └────────────────────┘
 ```
 
