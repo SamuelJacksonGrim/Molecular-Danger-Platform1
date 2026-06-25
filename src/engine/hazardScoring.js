@@ -18,7 +18,9 @@ export function scoreHazards(matchedPatterns, ob) {
   }
 
   // Near-zero oxygen balance on an energetic is an additional handling flag.
-  if (ob?.available && ob.nearZero && categories.has('explosive')) {
+  // Only a RELIABLE OB (CHNO-only molecule) may drive this — an unreliable value
+  // must not silently add to the score.
+  if (ob?.available && ob.reliable && ob.nearZero && categories.has('explosive')) {
     alerts.push({
       label: 'Near-zero oxygen balance',
       cat: 'explosive',
