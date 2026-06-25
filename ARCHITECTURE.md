@@ -148,7 +148,7 @@ SMILES string + exposure context
         ├─► matchPatterns(rdkit, mol, patterns)     rdkit/smartsMatcher   → HazardPattern[]
         │        └─ uses get_substruct_matches + minForCat gate
         │
-        ├─► oxygenBalance(rdkit, mol)               engine/oxygenBalance  → { available, percent, nearZero }
+        ├─► oxygenBalance(rdkit, mol)               engine/oxygenBalance  → { available, percent, nearZero, reliable, limitations? }
         │        └─ descriptors.getAtomCounts + getMolWeight
         │
         ├─► scoreHazards(matched, ob)               engine/hazardScoring  → { score, dangerLevel, categories, alerts, triggersEthicalWarning }
@@ -267,7 +267,8 @@ matchPatterns(rdkit: RDKit, mol: Mol, patterns: HazardPattern[]): HazardPattern[
 
 // descriptors.js
 getMolWeight(rdkit: RDKit, mol: Mol): number | null          // amw, fallback exactmw
-getAtomCounts(rdkit: RDKit, mol: Mol): { C, H, N, O } | null // explicit-H counts
+getAtomCounts(rdkit: RDKit, mol: Mol): { C, H, N, O, other: string[] } | null
+  // `other` = element symbols outside C/H/N/O (drives OB reliability)
 ```
 
 ### 6.4 Services — `services/`
@@ -338,7 +339,9 @@ external contributor.
 type HazardCategory = 'explosive' | 'chemical_weapon' | 'toxin';
 type Severity       = 'low' | 'moderate' | 'high' | 'critical';
 type DangerLevel    = 'MINIMAL' | 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
-type Stringency     = 'moderate' | 'high';
+type Stringency     = 'minimal' | 'moderate' | 'high' | 'critical';
+// NOTE: exposureContext currently emits only 'moderate' | 'high'. The wider domain
+// is declared now so adding handling levels later is not a breaking schema change.
 
 interface HazardPattern {          // see smarts-library.md §2 for full semantics
   smarts: string;
@@ -364,6 +367,8 @@ interface OxygenBalanceResult {    // engine/oxygenBalance.js
   available: boolean;              // false ⇒ counts/MW unavailable
   percent: number | null;         // OB% to 1 decimal, or null
   nearZero: boolean;              // |percent| < 60 when available, else false
+  reliable: boolean;              // false ⇒ molecule has non-CHNO atoms the formula ignores
+  limitations?: string[];         // present iff !reliable; explains why
 }
 
 interface Alert {
@@ -419,6 +424,8 @@ interface Report {
     available: boolean;            // false ⇒ counts/MW unavailable
     percent: number | null;
     nearZero: boolean;
+    reliable: boolean;             // false ⇒ non-CHNO molecule; percent is approximate
+    limitations: string[] | null;  // reason when !reliable, else null
   };
 
   // --- handling guidance (separate from hazard score) ---
@@ -446,6 +453,16 @@ interface Report {
 > scenario**. They are deliberately separate fields — exposure never modifies the
 > hazard score. This is the structural guarantee that the tool reports "how careful to
 > be," not "how to do the most harm."
+
+> **Schema note (deferred, per review):** the hazard fields (`dangerLevel`, `score`,
+> `categories`, `alerts`, `triggersEthicalWarning`) sit at the top level while
+> `oxygenBalance`, `handling`, and `reference` are nested objects. The asymmetry is
+> **intentional for now**. Grouping the hazard fields under a `hazard: {…}` block would
+> be cleaner, but it is a breaking change reserved for a deliberate **schema-version
+> pass**, not a silent edit — the current shape is internally consistent and the UI is
+> not yet built against it. The `oxygenBalance.limitations` field is `string[] | null`
+> on the Report (always present) even though the internal `OxygenBalanceResult` makes
+> it optional, so the UI can read it without an existence check.
 
 ### 7.4 Reference compound (Database tab)
 
@@ -552,7 +569,8 @@ System-wide posture: **prefer an explicit absence over a fabricated value.**
 | Input | Whitespace / empty / >1000 chars | `isPlausibleSmiles` returns `false`; UI blocks before parsing. |
 | Parse | Invalid SMILES | `parseMolecule` **throws** `Invalid SMILES: …`; `assessMolecule` propagates (and still frees any partial mol). |
 | Match | Bad SMARTS / invalid qmol | `countSmartsMatches` returns `0` (pattern simply doesn't register). |
-| Oxygen balance | Counts/MW unobtainable | `oxygenBalance` returns `{ available:false, percent:null, nearZero:false }`; report carries that object (UI keys off `available`). |
+| Oxygen balance | Counts/MW unobtainable | `oxygenBalance` returns `{ available:false, … reliable:false }`; report carries the object (UI keys off `available`). |
+| Oxygen balance | Non-CHNO molecule (S, P, halogens, metals) | Value is computed but `reliable:false` with a `limitations` reason; the score flag is **not** applied (scoring requires `reliable`). UI shows it as approximate, not authoritative. |
 | PubChem | Any network/parse error, or no CID | `lookupPubChem` returns the empty record (`available:false`); assessment proceeds offline. Toxicity sub-lookup failure is swallowed (LD50 stays `null`). |
 | Scoring | (none — pure) | Score clamped to ≤ 1.0. |
 
