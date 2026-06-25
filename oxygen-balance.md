@@ -139,9 +139,15 @@ enter the OB formula (see §6).
 ### Degradation contract
 
 If reliable C/H/O counts cannot be obtained, `getAtomCounts` returns `null`,
-`oxygenBalance` returns `{ available: false, percent: null, nearZero: false }`, and the
-report shows OB as **unavailable**. The module never emits a fabricated value — an
-unavailable result is always preferable to a wrong one.
+`oxygenBalance` returns `{ available: false, percent: null, nearZero: false, reliable:
+false }`, and the report shows OB as **unavailable**. The module never emits a
+fabricated value — an unavailable result is always preferable to a wrong one.
+
+If the molecule **can** be measured but contains atoms outside C/H/N/O (§6), the value
+is still computed but returned with `reliable: false` and a `limitations` array naming
+the offending elements. This is the enforcement of the CHNO-scope limitation: the
+result is flagged, not silently presented as authoritative, and it does **not** drive
+the near-zero scoring flag (see §8).
 
 ---
 
@@ -159,6 +165,13 @@ unavailable result is always preferable to a wrong one.
    organometallics, halogenated energetics), the computed OB is **approximate or
    invalid**. The general OB formula extends with element-specific oxide terms; the
    platform implements only the CHNO core.
+
+   **This limitation is enforced, not just noted.** When any non-CHNO atom is present,
+   `oxygenBalance` returns `reliable: false` with a `limitations` entry naming the
+   elements (e.g. Sarin → `reliable: false`, "Contains non-CHNO atoms (F, P)…"). The
+   value is still returned for reference, but it is flagged and excluded from the
+   scoring flag (§8). Verified examples: Sarin (F, P), parathion (P, S), and sulfur
+   mustard (Cl, S) all report `reliable: false`.
 2. **First-order indicator.** OB is computed from molecular formula alone. It ignores
    crystal form, polymorphism, particle size, and confinement, and it is **not** a
    substitute for measured impact / friction / electrostatic sensitivity or for an SDS.
@@ -175,11 +188,14 @@ oxygenBalance(rdkit, mol): {
   available: boolean;      // false if counts/MW could not be obtained
   percent: number | null;  // OB% to one decimal, or null when unavailable
   nearZero: boolean;       // |percent| < 60 when available, else false
+  reliable: boolean;       // false if the molecule contains non-CHNO atoms (§6)
+  limitations?: string[];  // present iff !reliable; explains why the value is approximate
 }
 
 // src/rdkit/descriptors.js
-getMolWeight(rdkit, mol): number | null            // amw, or null
-getAtomCounts(rdkit, mol): { C, H, N, O } | null    // explicit-H counts, or null
+getMolWeight(rdkit, mol): number | null                         // amw, or null
+getAtomCounts(rdkit, mol): { C, H, N, O, other: string[] } | null
+  // `other` = element symbols outside C/H/N/O; non-empty ⇒ OB is unreliable
 ```
 
 The `rdkit` instance is injected (not pulled from `window`), so the whole computation
@@ -192,9 +208,10 @@ is unit-testable outside the browser. See `architecture.md` for the dependency g
 `src/engine/hazardScoring.js` consumes the OB result:
 
 - If a molecule matches an `explosive` pattern **and** `oxygenBalance.available &&
-  oxygenBalance.nearZero`, an alert "Near-zero oxygen balance — self-oxidizing, store
-  and handle as a sensitive energetic" is appended and **+0.15** is added to the hazard
-  score (before the ≤ 1.0 clamp).
+  oxygenBalance.reliable && oxygenBalance.nearZero`, an alert "Near-zero oxygen balance
+  — self-oxidizing, store and handle as a sensitive energetic" is appended and **+0.15**
+  is added to the hazard score (before the ≤ 1.0 clamp). The `reliable` requirement
+  means an approximate OB on a non-CHNO compound never silently inflates the score.
 - OB has **no effect** on non-energetic compounds — a near-zero OB on a molecule with
   no explosive match contributes nothing.
 
