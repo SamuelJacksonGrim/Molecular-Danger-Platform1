@@ -44,31 +44,31 @@ defines the contracts that `hazard-engine.md`, `pubchem-integration.md`,
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  PRESENTATION  [PLANNED]                                                        │
-│  React pages (Assess · Batch · Database · Compare · Analytics ·                 │
-│  History) · components · hooks · 2D render (SmilesDrawer) · charts              │
-│  (Recharts)                                                                     │
+│  PRESENTATION  [PLANNED]                                              │
+│  React pages (Assess · Batch · Database · Compare · Analytics ·       │
+│  History) · components · hooks · 2D render (SmilesDrawer) · charts    │
+│  (Recharts)                                                           │
 └───────────────────────────────┬─────────────────────────────────────┘
                                  │ calls loadRDKit() once, then
                                  │ assessMolecule(rdkit, smiles, exposure)
 ┌───────────────────────────────▼─────────────────────────────────────┐
-│  ORCHESTRATION  [BUILT]                                                          │
-│  engine/assessMolecule.js   — runs the pipeline, owns mol lifecycle              │
+│  ORCHESTRATION  [BUILT]                                               │
+│  engine/assessMolecule.js   — runs the pipeline, owns mol lifecycle   │
 └───────┬─────────────┬──────────────┬───────────────┬─────────────────┘
-         │                │                │                  │
+        │             │              │               │
 ┌───────▼──────┐ ┌────▼───────┐ ┌────▼─────────┐ ┌───▼──────────────┐
-│ DOMAIN LOGIC    │ │  PATTERNS     │ │ RDKit ADAPTER   │ │   SERVICES          │
-│  [BUILT]        │ │  [BUILT]      │ │  [BUILT]        │ │  pubchem [BUILT]    │
-│ hazardScoring   │ │ explosives    │ │ moleculeParser  │ │ export   [PLANNED]  │
-│ oxygenBalance   │ │ cwcAgents     │ │ smartsMatcher   │ │ storage  [PLANNED]  │
-│ exposureCtx     │ │ toxicophore   │ │ descriptors     │ └──────────────────┘
-│ reportBuilder   │ │ index         │ │ rdkitLoader     │
-└──────┬───────┘  └────────────┘ └───────────────┘
+│ DOMAIN LOGIC │ │  PATTERNS  │ │ RDKit ADAPTER│ │   SERVICES       │
+│  [BUILT]     │ │  [BUILT]   │ │  [BUILT]     │ │  pubchem [BUILT] │
+│ hazardScoring│ │ explosives │ │ moleculeParser│ │ export   [PLANNED]│
+│ oxygenBalance│ │ cwcAgents  │ │ smartsMatcher │ │ storage  [PLANNED]│
+│ exposureCtx  │ │ toxicophore│ │ descriptors   │ └──────────────────┘
+│ reportBuilder│ │ index      │ │ rdkitLoader   │
+└───────┬──────┘ └────────────┘ └───────────────┘
         │
 ┌───────▼──────────────┐   ┌──────────────────┐   ┌────────────────────┐
-│  UTILITIES  [BUILT]      │   │ PERSISTENCE          │   │ CONCURRENCY           │
-│ riskLevels               │   │  [PLANNED]           │   │  [PLANNED]            │
-│ validation               │   │ storage/ (forage)    │   │ workers/batchWorker   │
+│  UTILITIES  [BUILT]  │   │ PERSISTENCE       │   │ CONCURRENCY        │
+│ riskLevels           │   │  [PLANNED]        │   │  [PLANNED]         │
+│ validation           │   │ storage/ (forage) │   │ workers/batchWorker│
 └──────────────────────┘   └──────────────────┘   └────────────────────┘
 ```
 
@@ -154,7 +154,7 @@ SMILES string + exposure context
         ├─► scoreHazards(matched, ob)               engine/hazardScoring  → { score, dangerLevel, categories, alerts, triggersEthicalWarning }
         │        └─ riskLevels.dangerLevelFor
         │
-        ├─► exposureContext(exposure)               engine/exposureContext → { stringency, notes, appliedRoute }
+        ├─► exposureContext(exposure)               engine/exposureContext → { stringency, notes, route, population, ventilation }
         │
         ├─► lookupPubChem(smiles)  [async, optional] services/pubchem      → { available, cid, iupacName, molecularWeight, ld50 }
         │        └─ skipped if options.skipPubChem
@@ -180,15 +180,25 @@ Key invariants:
 ## 5. Runtime flow — batch  [PLANNED]
 
 ```
-SMILES[]  ──►  workers/batchWorker  (Web Worker, off main thread)
-                   │  for each SMILES: assessMolecule(rdkit, smiles, exposure, { skipPubChem: true })
+SMILES[]
+   │
+   │  (1) UI spawns worker; worker loads RDKit WASM, then  ── { type:'ready' } ─►  UI
+   │      UI does NOT dispatch work until 'ready' arrives (avoids the cold-start race)
+   ▼
+   (2) UI  ── { type:'assess', smilesList, exposure } ─►  workers/batchWorker
+                   │  for each SMILES: assessMolecule(rdkit, smiles, exposure, { skipPubChem:true })
+                   │  ── { type:'progress', done, total } ─►  (streamed)
                    ▼
-              Report[]  ──►  postMessage  ──►  UI (Batch tab) renders table
+              ── { type:'result', reports: Report[] } ─►  UI (Batch tab) renders table
 ```
 
 Contract (planned):
-- The worker initializes its own RDKit instance (WASM is per-context).
-- PubChem is skipped by default in batch (`skipPubChem: true`) to avoid rate limits and
+- **Handshake first.** RDKit WASM must download, instantiate, and allocate before the
+  worker can accept work. The worker emits `{ type:'ready' }` only after its RDKit
+  instance is compiled; the main thread holds all `assess` messages until then.
+  Dispatching before `ready` would queue or drop silently — a cold-start race.
+- The worker initializes its **own** RDKit instance (WASM is per-context).
+- PubChem is skipped by default in batch (`skipPubChem:true`) to avoid rate limits and
   keep batch deterministic; the UI may offer opt-in enrichment.
 - Progress is streamed via incremental `postMessage` so the UI thread stays responsive.
 
@@ -309,6 +319,7 @@ getSettings(): Promise<Settings>
 saveSettings(s: Settings): Promise<void>
 
 // workers/batchWorker.js   (message protocol)
+// ← { type: 'ready' }                                            (worker: WASM compiled)
 // → { type: 'assess', smilesList: string[], exposure: ExposureContext }
 // ← { type: 'progress', done: number, total: number }
 // ← { type: 'result', reports: Report[] }
@@ -373,7 +384,9 @@ interface ScoringResult {          // engine/hazardScoring.js
 interface HandlingResult {         // engine/exposureContext.js
   stringency: Stringency;
   notes: string[];
-  appliedRoute: string;            // echoed input route (note: not surfaced into Report)
+  route: string;                   // resolved exposure scenario, echoed into the Report
+  population: string;
+  ventilation: string;
 }
 
 interface PubChemResult {          // services/pubchem.js
@@ -402,12 +415,19 @@ interface Report {
   alerts: Alert[];
   triggersEthicalWarning: boolean;
 
-  oxygenBalance: number | null;    // OB% flattened from OxygenBalanceResult, or null
+  oxygenBalance: {                 // full OB result — UI sees the flag that drove scoring
+    available: boolean;            // false ⇒ counts/MW unavailable
+    percent: number | null;
+    nearZero: boolean;
+  };
 
   // --- handling guidance (separate from hazard score) ---
   handling: {
     stringency: Stringency;
     notes: string[];
+    route: string;                 // resolved exposure scenario that generated the guidance
+    population: string;
+    ventilation: string;
   };
 
   // --- external cross-reference ---
@@ -532,7 +552,7 @@ System-wide posture: **prefer an explicit absence over a fabricated value.**
 | Input | Whitespace / empty / >1000 chars | `isPlausibleSmiles` returns `false`; UI blocks before parsing. |
 | Parse | Invalid SMILES | `parseMolecule` **throws** `Invalid SMILES: …`; `assessMolecule` propagates (and still frees any partial mol). |
 | Match | Bad SMARTS / invalid qmol | `countSmartsMatches` returns `0` (pattern simply doesn't register). |
-| Oxygen balance | Counts/MW unobtainable | `oxygenBalance` returns `{ available:false, percent:null, nearZero:false }`; report shows `oxygenBalance: null`. |
+| Oxygen balance | Counts/MW unobtainable | `oxygenBalance` returns `{ available:false, percent:null, nearZero:false }`; report carries that object (UI keys off `available`). |
 | PubChem | Any network/parse error, or no CID | `lookupPubChem` returns the empty record (`available:false`); assessment proceeds offline. Toxicity sub-lookup failure is swallowed (LD50 stays `null`). |
 | Scoring | (none — pure) | Score clamped to ≤ 1.0. |
 
@@ -549,12 +569,17 @@ UI/storage concern, planned via `localforage` (IndexedDB):
 
 | Store | Contents | Key shape (proposed) |
 | --- | --- | --- |
-| `historyStore` | Past `Report` objects | `history:<timestamp>` |
+| `historyStore` | Past `Report` objects | `history:<timestamp>:<uuid>` |
 | `databaseStore` | User-added `ReferenceCompound`s | `compound:<cas>` |
 | `settingsStore` | UI/scan preferences | `settings:current` |
 
 History is exportable to CSV/JSON via the planned `services/export*`. All persistence
 is local to the device; nothing is uploaded.
+
+> **Key uniqueness (per review):** history keys carry a `<uuid>` suffix because batch
+> screening writes many reports within the same millisecond — a bare `<timestamp>` key
+> would overwrite and silently lose entries. A UUID (not a SMILES hash) is used so that
+> assessing the *same* compound twice yields two distinct history entries.
 
 ---
 
