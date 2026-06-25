@@ -59,5 +59,7 @@ export function exposureContext(exposure = {}) {
   let stringency = routeInfo.level;
   if (sensitive && stringency !== 'high') stringency = 'high';
 
-  return { stringency, notes, appliedRoute: route };
+  // Echo the resolved exposure scenario so the report (and UI) can show what
+  // generated the guidance — not just the resulting stringency.
+  return { stringency, notes, route, population, ventilation };
 }
