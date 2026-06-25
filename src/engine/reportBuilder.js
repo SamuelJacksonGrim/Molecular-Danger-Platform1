@@ -13,12 +13,22 @@ export function buildReport({ smiles, scoring, oxygenBalance, exposure, pubchem 
     alerts: scoring.alerts,
     triggersEthicalWarning: scoring.triggersEthicalWarning,
 
-    oxygenBalance: oxygenBalance.available ? oxygenBalance.percent : null,
+    // Full oxygen-balance result: the UI sees the nearZero flag that drove the
+    // scoring alert, and can distinguish "unavailable" from a real value.
+    oxygenBalance: {
+      available: oxygenBalance.available,
+      percent: oxygenBalance.percent,
+      nearZero: oxygenBalance.nearZero,
+    },
 
     // Handling guidance — how careful to be — kept separate from the hazard score.
+    // Echoes the resolved exposure scenario so the UI can show what generated it.
     handling: {
       stringency: exposure.stringency,
       notes: exposure.notes,
+      route: exposure.route,
+      population: exposure.population,
+      ventilation: exposure.ventilation,
     },
 
     reference: {
