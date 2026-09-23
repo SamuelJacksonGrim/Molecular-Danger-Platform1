@@ -1,5 +1,10 @@
 # Molecular Danger Assessment Platform
 
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+[![dual-license](https://img.shields.io/badge/dual--license-AGPL--3.0--only%20or%20commercial-blueviolet)](LICENSING.md)
+[![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript)
+
+
 **A client-side cheminformatics tool for chemical hazard recognition and safety education.**
 
 Author: Samuel Jackson Grim ("Architect of Resonance") · License: see [`LICENSE`](./LICENSE) · Terms of use: see [`TERMS.md`](./TERMS.md)
